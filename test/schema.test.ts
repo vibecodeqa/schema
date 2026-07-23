@@ -59,9 +59,65 @@ describe("@vibecodeqa/schema", () => {
 		expect(VibeReportSchema.parse(report).grade).toBe("A");
 	});
 
+	it("allows future detector vocabularies", () => {
+		const parsed = parseReport({
+			...report,
+			meta: {
+				...report.meta,
+				stack: {
+					language: "rust",
+					framework: "solid",
+					bundler: "rolldown",
+					testRunner: "uvu",
+					linter: "oxlint",
+					packageManager: "mise",
+				},
+				workspace: {
+					isMonorepo: true,
+					tool: "moonrepo",
+					packages: [],
+					srcRoots: [],
+				},
+			},
+		});
+
+		expect(parsed.meta.stack.language).toBe("rust");
+		expect(parsed.meta.workspace?.tool).toBe("moonrepo");
+	});
+
+	it("preserves future report fields while validating required shape", () => {
+		const parsed = parseReport({
+			...report,
+			producer: "future-cli",
+			checks: [
+				{
+					...report.checks[0],
+					evidence: { confidence: 0.98 },
+					issues: [{ severity: "info", message: "heads up", sourceRange: { start: 1, end: 2 } }],
+				},
+			],
+			meta: {
+				...report.meta,
+				commitSha: "abc123",
+				stack: { ...report.meta.stack, runtime: "deno" },
+			},
+		}) as typeof report & {
+			producer: string;
+			checks: [{ evidence: { confidence: number }; issues: [{ sourceRange: { start: number; end: number } }] }];
+			meta: { commitSha: string; stack: { runtime: string } };
+		};
+
+		expect(parsed.producer).toBe("future-cli");
+		expect(parsed.checks[0].evidence.confidence).toBe(0.98);
+		expect(parsed.checks[0].issues[0].sourceRange.start).toBe(1);
+		expect(parsed.meta.commitSha).toBe("abc123");
+		expect(parsed.meta.stack.runtime).toBe("deno");
+	});
+
 	it("rejects malformed reports loudly", () => {
 		expect(() => parseReport({ ...report, checks: [{ name: "structure" }] })).toThrow();
 		expect(() => parseReport({ ...report, grade: "Z" })).toThrow();
+		expect(() => parseReport({ ...report, checks: [{ ...report.checks[0], issues: [{ severity: "notice", message: "nope" }] }] })).toThrow();
 	});
 
 	it("keeps grade thresholds stable", () => {

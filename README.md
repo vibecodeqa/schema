@@ -20,6 +20,11 @@ const report: VibeReport = parseReport(json);
 const checkCount = Object.keys(CHECK_META).length;
 ```
 
+`parseReport()` keeps the report shape strict where the vocabulary is truly closed
+(`grade`, issue `severity`) and forward-compatible where producers evolve over time
+(stack detector values, workspace tool names, and extra report fields). Consumers can
+validate reports without dropping future CLI data.
+
 ## Publishing
 
 This package is intended to be published publicly as `@vibecodeqa/schema`.

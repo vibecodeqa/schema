@@ -1,16 +1,27 @@
 /** Shared types for vibe-check */
 
+export type Grade = "A" | "B" | "C" | "D" | "F";
+export type Severity = "error" | "warning" | "info";
+
+export type StackLanguage = "typescript" | "javascript" | "dart" | "unknown" | (string & {});
+export type StackFramework = "react" | "vue" | "svelte" | "flutter" | "none" | "unknown" | (string & {});
+export type StackBundler = "vite" | "webpack" | "esbuild" | "none" | "unknown" | (string & {});
+export type StackTestRunner = "vitest" | "jest" | "flutter_test" | "dart_test" | "none" | "unknown" | (string & {});
+export type StackLinter = "biome" | "eslint" | "dart_analyze" | "none" | "unknown" | (string & {});
+export type StackPackageManager = "pnpm" | "npm" | "yarn" | "bun" | "pub" | "unknown" | (string & {});
+export type WorkspaceTool = "pnpm" | "npm" | "yarn" | "bun" | "lerna" | "turborepo" | "nx" | "melos" | "none" | (string & {});
+
 export interface CheckResult {
 	name: string;
 	score: number; // 0-100
-	grade: "A" | "B" | "C" | "D" | "F";
+	grade: Grade;
 	details: Record<string, unknown>;
 	issues: Issue[];
 	duration: number; // ms
 }
 
 export interface Issue {
-	severity: "error" | "warning" | "info";
+	severity: Severity;
 	message: string;
 	file?: string;
 	line?: number;
@@ -22,7 +33,7 @@ export interface VibeReport {
 	version: string;
 	timestamp: string;
 	score: number; // 0-100 composite
-	grade: "A" | "B" | "C" | "D" | "F";
+	grade: Grade;
 	checks: CheckResult[];
 	meta: {
 		cwd: string;
@@ -36,12 +47,12 @@ export interface VibeReport {
 }
 
 export interface StackInfo {
-	language: "typescript" | "javascript" | "dart" | "unknown";
-	framework: "react" | "vue" | "svelte" | "flutter" | "none" | "unknown";
-	bundler: "vite" | "webpack" | "esbuild" | "none" | "unknown";
-	testRunner: "vitest" | "jest" | "flutter_test" | "dart_test" | "none" | "unknown";
-	linter: "biome" | "eslint" | "dart_analyze" | "none" | "unknown";
-	packageManager: "pnpm" | "npm" | "yarn" | "bun" | "pub" | "unknown";
+	language: StackLanguage;
+	framework: StackFramework;
+	bundler: StackBundler;
+	testRunner: StackTestRunner;
+	linter: StackLinter;
+	packageManager: StackPackageManager;
 }
 
 export interface WorkspacePackage {
@@ -55,13 +66,13 @@ export interface WorkspacePackage {
 
 export interface WorkspaceInfo {
 	isMonorepo: boolean;
-	tool: "pnpm" | "npm" | "yarn" | "bun" | "lerna" | "turborepo" | "nx" | "melos" | "none";
+	tool: WorkspaceTool;
 	packages: WorkspacePackage[];
 	/** All directories containing source code (resolved from workspace packages) */
 	srcRoots: string[];
 }
 
-export function gradeFromScore(score: number): "A" | "B" | "C" | "D" | "F" {
+export function gradeFromScore(score: number): Grade {
 	if (score >= 90) return "A";
 	if (score >= 75) return "B";
 	if (score >= 60) return "C";
