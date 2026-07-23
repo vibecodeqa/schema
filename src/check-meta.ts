@@ -1,7 +1,16 @@
 /** Metadata for each check — description, risk, priority, weight, recommendations.
  *  This is what makes the report educational, not just a scorecard. */
 
+import type { StackInfo } from "./types.js";
+
 export type Priority = "critical" | "high" | "medium" | "low";
+
+/** Which stacks a check applies to. Omitted = stack-blind (runs everywhere).
+ *  The scan core gates on this centrally; runners must not re-implement it. */
+export interface AppliesTo {
+	language?: StackInfo["language"][];
+	framework?: StackInfo["framework"][];
+}
 
 export interface CheckMeta {
 	name: string;
@@ -15,6 +24,9 @@ export interface CheckMeta {
 	premium?: boolean;
 	/** Dedicated tools that do this check with deeper analysis. Shown as "go deeper" links in the report. */
 	deeperTools?: string[];
+	/** Stack gate — declared here, enforced centrally by the scan core. A check is
+	 *  either gated (declares appliesTo) or stack-blind; never stack-branching inside. */
+	appliesTo?: AppliesTo;
 }
 
 export const CHECK_META: Record<string, CheckMeta> = {
@@ -222,6 +234,7 @@ export const CHECK_META: Record<string, CheckMeta> = {
 		label: "React Patterns",
 		category: "Quality",
 		priority: "high",
+		appliesTo: { framework: ["react"] },
 		weight: 3,
 		description:
 			"Checks React-specific patterns: conditional hook calls (violates Rules of Hooks), missing key props in .map(), index as key, prop spreading on DOM elements, and excessive inline handlers.",
