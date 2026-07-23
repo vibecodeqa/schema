@@ -33,6 +33,7 @@ export const StackInfoSchema = z.object({
 	testRunner: openString<StackInfo["testRunner"]>(),
 	linter: openString<StackInfo["linter"]>(),
 	packageManager: openString<StackInfo["packageManager"]>(),
+	components: z.array(z.string()).optional(),
 }).passthrough();
 
 export const WorkspacePackageSchema = z.object({

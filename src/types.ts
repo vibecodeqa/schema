@@ -53,6 +53,10 @@ export interface StackInfo {
 	testRunner: StackTestRunner;
 	linter: StackLinter;
 	packageManager: StackPackageManager;
+	/** Detected infrastructure/data components — open vocabulary. Known values:
+	 *  "cloudflare-workers", "cloudflare-pages", "sqlite-d1", "cloudflare-kv",
+	 *  "cloudflare-r2", "durable-objects". Absent = none detected. */
+	components?: string[];
 }
 
 export interface WorkspacePackage {

@@ -10,6 +10,9 @@ export type Priority = "critical" | "high" | "medium" | "low";
 export interface AppliesTo {
 	language?: StackInfo["language"][];
 	framework?: StackInfo["framework"][];
+	/** Every listed component must be present in stack.components (conjunction —
+	 *  a composition check lists several). */
+	component?: string[];
 }
 
 export interface CheckMeta {

@@ -128,3 +128,16 @@ describe("@vibecodeqa/schema", () => {
 		expect(gradeFromScore(39)).toBe("F");
 	});
 });
+
+describe("components (0.3.0)", () => {
+	it("accepts stack.components and preserves it", () => {
+		const r = structuredClone(report);
+		(r.meta.stack as Record<string, unknown>).components = ["cloudflare-workers", "sqlite-d1"];
+		const parsed = parseReport(r);
+		expect(parsed.meta.stack.components).toEqual(["cloudflare-workers", "sqlite-d1"]);
+	});
+
+	it("stays optional — reports without components still parse", () => {
+		expect(() => parseReport(structuredClone(report))).not.toThrow();
+	});
+});
