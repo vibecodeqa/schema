@@ -1,0 +1,49 @@
+{
+	"name": "@vibecodeqa/schema",
+	"version": "0.1.0",
+	"description": "Shared VibeCode QA report schema, types, and check metadata.",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"LICENSE",
+		"README.md"
+	],
+	"scripts": {
+		"build": "tsc",
+		"test": "vitest run",
+		"prepublishOnly": "pnpm build && pnpm test"
+	},
+	"keywords": [
+		"vibecodeqa",
+		"schema",
+		"code-quality",
+		"code-health"
+	],
+	"author": "VibeCode QA <hello@vibecodeqa.online>",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/vibecodeqa/schema.git"
+	},
+	"homepage": "https://vibecodeqa.online",
+	"engines": {
+		"node": ">=20"
+	},
+	"dependencies": {
+		"zod": "^3.25.32"
+	},
+	"devDependencies": {
+		"@types/node": "^25.8.0",
+		"typescript": "^5.8.3",
+		"vitest": "^4.1.6"
+	},
+	"publishConfig": {
+		"access": "public"
+	}
+}
