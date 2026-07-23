@@ -35,7 +35,7 @@ const report = {
 
 describe("@vibecodeqa/schema", () => {
 	it("exports canonical check metadata", () => {
-		expect(Object.keys(CHECK_META)).toHaveLength(34);
+		expect(Object.keys(CHECK_META)).toHaveLength(35);
 		expect(CHECK_META.testing.weight).toBe(13);
 		expect(CHECK_META["frontend-health"]).toBeDefined();
 	});
