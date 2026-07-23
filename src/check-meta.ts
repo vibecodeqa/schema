@@ -473,6 +473,19 @@ export const CHECK_META: Record<string, CheckMeta> = {
 		recommendation:
 			"Keep compatibility_date within a year. Move secrets to `wrangler secret put`. Delete unused bindings; declare every binding the code touches. Add a scheduled() handler for every cron. Add nodejs_compat when importing node: builtins.",
 	},
+	"sqlite-d1": {
+		name: "sqlite-d1",
+		label: "SQLite / D1",
+		category: "Security",
+		priority: "critical",
+		weight: 0,
+		appliesTo: { component: ["sqlite-d1"] },
+		description:
+			"Audits SQLite/D1 data access: SQL built by string interpolation or concatenation instead of bound parameters (injection), placeholders declared without a .bind() call, queries issued inside loops (N+1), sequential writes that should be one batch(), and migration-file discipline (numbering gaps, duplicates, edits to already-applied migrations).",
+		risk: "Interpolated SQL is the classic injection vector — on D1 it runs with full database authority and no WAF in front of it. Placeholder/bind mismatches throw at runtime, not build time. N+1 query loops multiply latency by row count, and on Workers they burn the CPU-time budget until requests start failing under load.",
+		recommendation:
+			"Always use .prepare(sql).bind(...) with ? placeholders — never template literals containing user data. Hoist prepared statements out of loops and use a single IN (...) query or db.batch(). Keep migrations append-only with contiguous numbering.",
+	},
 };
 
 export function getCheckMeta(name: string): CheckMeta {
