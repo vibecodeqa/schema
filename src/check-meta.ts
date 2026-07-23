@@ -460,6 +460,19 @@ export const CHECK_META: Record<string, CheckMeta> = {
 		recommendation:
 			"Pin base images to specific tags. Add .dockerignore with node_modules/.git/.env. Use multi-stage builds. Add USER instruction.",
 	},
+	"cloudflare-workers": {
+		name: "cloudflare-workers",
+		label: "Cloudflare Workers",
+		category: "Quality",
+		priority: "high",
+		weight: 0,
+		appliesTo: { component: ["cloudflare-workers"] },
+		description:
+			"Audits Worker configuration and code together: wrangler config hygiene (compatibility date age, main entry), secrets accidentally committed in [vars], declared bindings (D1/KV/R2/DO/vars) that the code never uses, code touching env.* bindings that are not declared, cron triggers without a scheduled() handler, and node: imports without the nodejs_compat flag.",
+		risk: "A stale compatibility date silently opts you out of runtime fixes. Secrets in [vars] end up in git and in every deploy log. Undeclared bindings crash only at runtime in production; unused ones mask dead config. Cron triggers without a handler fail silently forever.",
+		recommendation:
+			"Keep compatibility_date within a year. Move secrets to `wrangler secret put`. Delete unused bindings; declare every binding the code touches. Add a scheduled() handler for every cron. Add nodejs_compat when importing node: builtins.",
+	},
 };
 
 export function getCheckMeta(name: string): CheckMeta {
