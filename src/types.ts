@@ -11,6 +11,18 @@ export type StackLinter = "biome" | "eslint" | "dart_analyze" | "none" | "unknow
 export type StackPackageManager = "pnpm" | "npm" | "yarn" | "bun" | "pub" | "unknown" | (string & {});
 export type WorkspaceTool = "pnpm" | "npm" | "yarn" | "bun" | "lerna" | "turborepo" | "nx" | "melos" | "none" | (string & {});
 
+/** Provenance for one delegated tool invocation, recorded by the CLI so a
+ *  report can be audited: what ran, where, and what it said. */
+export interface ToolRun {
+	tool: string;
+	command: string;
+	cwd: string;
+	ok: boolean;
+	durationMs: number;
+	output: string;
+	notFound: boolean;
+}
+
 export interface CheckResult {
 	name: string;
 	score: number; // 0-100

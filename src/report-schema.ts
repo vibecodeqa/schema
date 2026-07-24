@@ -66,6 +66,7 @@ export const VibeReportSchema = z.object({
 		workspace: WorkspaceInfoSchema.optional(),
 		repoUrl: z.string().nullable(),
 		branch: z.string(),
+		filesScanned: z.number().optional(),
 	}).passthrough(),
 }).passthrough();
 
