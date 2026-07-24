@@ -55,6 +55,9 @@ export interface VibeReport {
 		workspace?: WorkspaceInfo;
 		repoUrl: string | null; // GitHub/GitLab URL for file links
 		branch: string;
+		/** Source files the scan walked — lets a reader sanity-check a result
+		 *  against the size of their project instead of taking it on faith. */
+		filesScanned?: number;
 	};
 }
 
