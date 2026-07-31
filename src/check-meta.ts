@@ -240,11 +240,25 @@ export const CHECK_META: Record<string, CheckMeta> = {
 		appliesTo: { framework: ["react"] },
 		weight: 3,
 		description:
-			"Checks React-specific patterns: conditional hook calls (violates Rules of Hooks), missing key props in .map(), index as key, prop spreading on DOM elements, and excessive inline handlers.",
+			"Checks React-specific patterns: conditional hook calls, missing key props in .map(), index as key, prop spreading on DOM elements, useEffect dependency hazards, direct DOM queries, Error Boundary presence, and Tailwind inline-style pressure.",
 		risk: "Conditional hooks cause React to crash at runtime. Missing keys cause incorrect reconciliation — items can swap, duplicate, or lose state. Index keys break when lists are reordered or filtered.",
 		recommendation:
-			"Never call hooks inside conditions, loops, or nested functions. Always provide a unique, stable key in .map(). Avoid spreading unknown props onto DOM elements. Extract inline handlers for readability.",
+			"Never call hooks inside conditions, loops, or nested functions. Always provide a unique, stable key in .map(). Avoid spreading unknown props onto DOM elements. Use refs instead of direct DOM queries, and keep an Error Boundary near the app root.",
 		deeperTools: ["eslint-plugin-react-hooks", "eslint-plugin-react"],
+	},
+	flutter: {
+		name: "flutter",
+		label: "Flutter Health",
+		category: "Quality",
+		priority: "high",
+		appliesTo: { framework: ["flutter"] },
+		weight: 0,
+		description:
+			"Checks Flutter-specific project health: package discovery, analysis_options coverage, flutter_lints, widget/integration test presence, generated-file noise, and pubspec configuration across Flutter apps and shared packages.",
+		risk: "Flutter repositories often contain several packages. If analysis options, test layout, or generated-file handling drift between app, admin, and shared packages, CI can miss broken widgets, untested flows, and noisy generated code that hides real findings.",
+		recommendation:
+			"Give each Flutter package analysis_options.yaml or inherit a root config, enable flutter_lints, keep widget and integration tests near each app, and treat generated Dart files as visual-neutral/noise in quality maps.",
+		deeperTools: ["flutter analyze", "flutter test", "very_good_analysis", "custom_lint"],
 	},
 	accessibility: {
 		name: "accessibility",

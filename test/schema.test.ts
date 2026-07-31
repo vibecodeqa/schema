@@ -35,9 +35,10 @@ const report = {
 
 describe("@vibecodeqa/schema", () => {
 	it("exports canonical check metadata", () => {
-		expect(Object.keys(CHECK_META)).toHaveLength(36);
+		expect(Object.keys(CHECK_META)).toHaveLength(37);
 		expect(CHECK_META.testing.weight).toBe(13);
 		expect(CHECK_META["frontend-health"]).toBeDefined();
+		expect(CHECK_META.flutter.appliesTo).toEqual({ framework: ["flutter"] });
 	});
 
 	it("exports category weight rollups", () => {
