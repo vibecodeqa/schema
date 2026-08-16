@@ -286,6 +286,25 @@ export const CHECK_META: Record<string, CheckMeta> = {
 			"Replace barrel re-exports with direct imports. Swap heavy deps for lighter alternatives. Use dynamic import() for large libraries only needed on interaction. Prefer zero-runtime CSS (Tailwind, CSS Modules) over styled-components.",
 		deeperTools: ["knip", "bundlephobia.com", "Lighthouse"],
 	},
+	/** Derived from `performance` — the CLI re-projects the same Knip run as its
+	 *  own check so the dead-code findings get a dedicated surface. It must stay
+	 *  weight 0: scoring it would double-count findings `performance` already
+	 *  scores, and would break the weights-sum-to-100 invariant. The CLI also
+	 *  marks the result `synthetic`, but that is a runtime guard, not a
+	 *  declaration — this entry is the declaration. */
+	"dead-code": {
+		name: "dead-code",
+		label: "Dead Code",
+		category: "Architecture",
+		priority: "medium",
+		weight: 0,
+		description:
+			"Reports code nothing reaches, as found by Knip: source files no entry point imports, exported symbols and types no other module consumes, and dependencies declared in package.json that nothing imports. Findings are confidence-gated — without a Knip config the analysis cannot see custom entry points, so results are marked low confidence and scored leniently.",
+		risk: "Dead code is read, searched, and maintained as if it were live. It inflates the surface an agent or a new contributor has to understand, hides which code path is the real one, and keeps unused dependencies installed — carrying their advisories and install weight for no benefit. Unused exports in particular defeat tree-shaking and keep otherwise removable modules in the bundle.",
+		recommendation:
+			"Delete unreachable files and unused exports rather than commenting them out — git already remembers them. Remove unused dependencies with your package manager. Add a knip.json declaring the real entry points (bin scripts, framework routes, config files) so the analysis stops guessing and the findings become high confidence. Treat this check as advisory: verify a finding before deleting, since dynamic imports and framework conventions can hide a real consumer.",
+		deeperTools: ["knip", "ts-prune", "depcheck"],
+	},
 	"best-practices": {
 		name: "best-practices",
 		label: "Best Practices",

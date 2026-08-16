@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHECK_META, CATEGORY_WEIGHTS, VibeReportSchema, getCategoryWeights, gradeFromScore, parseReport } from "../src/index.js";
+import { CHECK_META, CATEGORY_WEIGHTS, VibeReportSchema, getCategoryWeights, getCheckMeta, gradeFromScore, parseReport } from "../src/index.js";
 
 const report = {
 	version: "0.44.5",
@@ -35,10 +35,50 @@ const report = {
 
 describe("@vibecodeqa/schema", () => {
 	it("exports canonical check metadata", () => {
-		expect(Object.keys(CHECK_META)).toHaveLength(37);
+		expect(Object.keys(CHECK_META)).toHaveLength(38);
 		expect(CHECK_META.testing.weight).toBe(13);
 		expect(CHECK_META["frontend-health"]).toBeDefined();
 		expect(CHECK_META.flutter.appliesTo).toEqual({ framework: ["flutter"] });
+	});
+
+	/** Every entry must be complete. A half-added check whose recommendation is
+	 *  "" is indistinguishable from an undocumented one at the explain surface:
+	 *  `vcqa explain` treats an empty description as "Unknown check". */
+	it("documents every check completely, with keys matching names", () => {
+		for (const [key, meta] of Object.entries(CHECK_META)) {
+			expect(meta.name, `${key}: name must match its key`).toBe(key);
+			expect(meta.label.length, `${key}: label must be non-empty`).toBeGreaterThan(0);
+			expect(meta.category.length, `${key}: category must be non-empty`).toBeGreaterThan(0);
+			expect(meta.description.length, `${key}: description must be non-empty`).toBeGreaterThan(0);
+			expect(meta.risk.length, `${key}: risk must be non-empty`).toBeGreaterThan(0);
+			expect(meta.recommendation.length, `${key}: recommendation must be non-empty`).toBeGreaterThan(0);
+		}
+	});
+
+	/** Regression for the dead-code gap: the check was emitted by the CLI but
+	 *  documented by no schema version, so getCheckMeta silently fell back to a
+	 *  category-"Other", weight-5 stub. That default is what makes the gap
+	 *  invisible — it never throws, it just answers wrongly and, if the CLI ever
+	 *  dropped its `synthetic` runtime guard, would take 5% of the composite. */
+	it("documents dead-code as an unscored derived check, not the fallback stub", () => {
+		const meta = getCheckMeta("dead-code");
+
+		expect(meta).toBe(CHECK_META["dead-code"]);
+		expect(meta.label).toBe("Dead Code");
+		expect(meta.category).toBe("Architecture");
+		// Weight 0 = advisory. Scoring it would double-count the same Knip
+		// findings that `performance` (weight 4) already scores.
+		expect(meta.weight).toBe(0);
+		expect(meta.category).not.toBe("Other");
+		expect(meta.deeperTools).toContain("knip");
+	});
+
+	it("falls back to a stub only for genuinely unknown checks", () => {
+		const unknown = getCheckMeta("not-a-real-check");
+
+		expect(unknown.category).toBe("Other");
+		expect(unknown.weight).toBe(5);
+		expect(unknown.description).toBe("");
 	});
 
 	it("exports category weight rollups", () => {
