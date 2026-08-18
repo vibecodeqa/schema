@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { CHECK_META, CATEGORY_WEIGHTS, VibeReportSchema, getCategoryWeights, getCheckMeta, gradeFromScore, parseReport } from "../src/index.js";
+import {
+	CHECK_META,
+	CATEGORY_WEIGHTS,
+	RepoMetricHistoryResponseSchema,
+	VibeReportSchema,
+	getCategoryWeights,
+	getCheckMeta,
+	gradeFromScore,
+	parseRepoMetricHistoryResponse,
+	parseReport,
+	safeParseRepoMetricHistoryResponse,
+} from "../src/index.js";
 
 const report = {
 	version: "0.44.5",
@@ -33,9 +44,64 @@ const report = {
 	},
 };
 
+/** The canonical roster, spelled out rather than counted.
+ *
+ *  A bare `toHaveLength(n)` carries no provenance, and that nearly cost us:
+ *  two concurrent changes both moved 37 → 38 for different reasons. The
+ *  assertions merged cleanly — same file, same line, same text — leaving the
+ *  suite asserting a stale count that neither change intended.
+ *
+ *  Listing the names makes that impossible: a check added on one side and not
+ *  the other shows up in the failure diff *by name*, and two independent
+ *  additions conflict textually instead of agreeing on a stale integer. */
+const CANONICAL_CHECKS = [
+	"accessibility",
+	"architecture",
+	"best-practices",
+	"cloudflare-workers",
+	"code-coherence",
+	"comment-staleness",
+	"complexity",
+	"confusion",
+	"container-health",
+	"context",
+	"dead-code",
+	"dead-patterns",
+	"dependencies",
+	"design-consistency",
+	"doc-coherence",
+	"docs",
+	"duplication",
+	"env-validation",
+	"error-handling",
+	"file-cohesion",
+	"flutter",
+	"frontend-health",
+	"git-hygiene",
+	"html-quality",
+	"lint",
+	"memory-safety",
+	"performance",
+	"react",
+	"secrets",
+	"security",
+	"sqlite-d1",
+	"standards",
+	"structure",
+	"styling",
+	"test-audit",
+	"testing",
+	"type-safety",
+	"types",
+] as const;
+
 describe("@vibecodeqa/schema", () => {
+	it("exports exactly the canonical check roster", () => {
+		// Sorted set equality: the failure names the check, not an integer.
+		expect(Object.keys(CHECK_META).sort()).toEqual([...CANONICAL_CHECKS].sort());
+	});
+
 	it("exports canonical check metadata", () => {
-		expect(Object.keys(CHECK_META)).toHaveLength(38);
 		expect(CHECK_META.testing.weight).toBe(13);
 		expect(CHECK_META["frontend-health"]).toBeDefined();
 		expect(CHECK_META.flutter.appliesTo).toEqual({ framework: ["flutter"] });
@@ -98,6 +164,64 @@ describe("@vibecodeqa/schema", () => {
 	it("validates full VibeReport JSON", () => {
 		expect(parseReport(report)).toEqual(report);
 		expect(VibeReportSchema.parse(report).grade).toBe("A");
+	});
+
+	it("keeps legacy reports without analyzer snapshots valid", () => {
+		const parsed = parseReport(structuredClone(report));
+
+		expect(parsed.meta.analyzerSnapshots).toBeUndefined();
+	});
+
+	it("validates modern reports with analyzer snapshots and metrics", () => {
+		const modern = {
+			...report,
+			meta: {
+				...report.meta,
+				analyzerSnapshots: [
+					{
+						analyzerId: "react",
+						status: "passed",
+						score: 96,
+						findingCount: 1,
+						severityCounts: { warning: 1 },
+						metrics: [
+							{ id: "jsxFiles", label: "JSX/TSX files", value: 8, unit: "count", trend: "neutral" },
+							{ id: "runtime", label: "Runtime", value: "react", trend: "neutral" },
+							{ id: "hasCompiler", label: "Compiler enabled", value: true },
+						],
+						durationMs: 12,
+					},
+				],
+			},
+		};
+
+		const parsed = parseReport(modern);
+
+		expect(parsed.meta.analyzerSnapshots?.[0]?.analyzerId).toBe("react");
+		expect(parsed.meta.analyzerSnapshots?.[0]?.metrics.map((metric) => metric.value)).toEqual([8, "react", true]);
+	});
+
+	it("rejects malformed analyzer metrics deliberately", () => {
+		const withMetric = (metric: Record<string, unknown>) => ({
+			...report,
+			meta: {
+				...report.meta,
+				analyzerSnapshots: [
+					{
+						analyzerId: "react",
+						status: "passed",
+						findingCount: 0,
+						severityCounts: {},
+						metrics: [metric],
+						durationMs: 1,
+					},
+				],
+			},
+		});
+
+		expect(() => parseReport(withMetric({ id: "files", label: "Files", value: { count: 3 } }))).toThrow();
+		expect(() => parseReport(withMetric({ id: "files", label: "Files", value: 3, unit: "lines" }))).toThrow();
+		expect(() => parseReport(withMetric({ id: "files", label: "Files", value: 3, trend: "up-good" }))).toThrow();
 	});
 
 	it("allows future detector vocabularies", () => {
@@ -180,5 +304,97 @@ describe("components (0.3.0)", () => {
 
 	it("stays optional — reports without components still parse", () => {
 		expect(() => parseReport(structuredClone(report))).not.toThrow();
+	});
+});
+
+describe("repo metric history contract", () => {
+	const metricHistory = {
+		version: "1",
+		generatedAt: "2026-08-14T00:00:00.000Z",
+		owner: "vibecodeqa",
+		repo: "app",
+		branch: "main",
+		defaultBranch: "main",
+		window: {
+			from: "2026-08-01T00:00:00.000Z",
+			to: "2026-08-14T00:00:00.000Z",
+			limit: 30,
+		},
+		series: [
+			{
+				id: "overall.score",
+				kind: "overall",
+				label: "Overall score",
+				metricId: "score",
+				unit: "score",
+				trend: "higher-is-better",
+				points: [
+					{ timestamp: "2026-08-13T00:00:00.000Z", value: 91, grade: "A", reportId: "r1", commitSha: "abc123", branch: "main" },
+					{ timestamp: "2026-08-14T00:00:00.000Z", value: 92, grade: "A", reportId: "r2", commitSha: "def456", branch: "main" },
+				],
+			},
+			{
+				id: "check.testing.score",
+				kind: "check",
+				label: "Testing score",
+				checkName: "testing",
+				metricId: "score",
+				unit: "score",
+				trend: "higher-is-better",
+				points: [
+					{ timestamp: "2026-08-13T00:00:00.000Z", value: 78 },
+					{ timestamp: "2026-08-14T00:00:00.000Z", value: 83 },
+				],
+			},
+			{
+				id: "analyzer.react.jsxFiles",
+				kind: "analyzer",
+				label: "React JSX/TSX files",
+				analyzerId: "react",
+				metricId: "jsxFiles",
+				unit: "count",
+				trend: "neutral",
+				points: [
+					{ timestamp: "2026-08-13T00:00:00.000Z", value: 12 },
+					{ timestamp: "2026-08-14T00:00:00.000Z", value: 14 },
+				],
+			},
+		],
+	};
+
+	it("validates compact overall, check, and analyzer metric series", () => {
+		const parsed = parseRepoMetricHistoryResponse(metricHistory);
+
+		expect(parsed.series.map((series) => series.kind)).toEqual(["overall", "check", "analyzer"]);
+		expect(RepoMetricHistoryResponseSchema.parse(metricHistory).series[2]?.points[1]?.value).toBe(14);
+	});
+
+	it("rejects malformed graph points and missing discriminator fields", () => {
+		expect(safeParseRepoMetricHistoryResponse({
+			...metricHistory,
+			series: [{ ...metricHistory.series[0], points: [{ timestamp: "2026-08-14T00:00:00.000Z", value: "92" }] }],
+		}).success).toBe(false);
+
+		expect(safeParseRepoMetricHistoryResponse({
+			...metricHistory,
+			series: [{ ...metricHistory.series[1], checkName: undefined }],
+		}).success).toBe(false);
+
+		expect(safeParseRepoMetricHistoryResponse({
+			...metricHistory,
+			series: [{ ...metricHistory.series[2], analyzerId: undefined }],
+		}).success).toBe(false);
+	});
+
+	it("rejects unsupported metric-history units and trends", () => {
+		expect(() => parseRepoMetricHistoryResponse({
+			...metricHistory,
+			series: [{ ...metricHistory.series[0], unit: "lines" }],
+		})).toThrow();
+
+		expect(() => parseRepoMetricHistoryResponse({
+			...metricHistory,
+			series: [{ ...metricHistory.series[0], trend: "up-good" }],
+		})).toThrow();
 	});
 });

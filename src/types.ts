@@ -2,6 +2,10 @@
 
 export type Grade = "A" | "B" | "C" | "D" | "F";
 export type Severity = "error" | "warning" | "info";
+export type MetricUnit = "count" | "percent" | "ms" | "bytes" | "score";
+export type MetricTrend = "higher-is-better" | "lower-is-better" | "neutral";
+export type AnalyzerStatus = "passed" | "failed" | "skipped" | "unavailable" | "error" | (string & {});
+export type AnalyzerMetricValue = number | string | boolean;
 
 export type StackLanguage = "typescript" | "javascript" | "dart" | "unknown" | (string & {});
 export type StackFramework = "react" | "vue" | "svelte" | "flutter" | "none" | "unknown" | (string & {});
@@ -41,6 +45,24 @@ export interface Issue {
 	snippet?: string; // copyable code snippet (e.g., duplicated block for search)
 }
 
+export interface AnalyzerMetric {
+	id: string;
+	label: string;
+	value: AnalyzerMetricValue;
+	unit?: MetricUnit;
+	trend?: MetricTrend;
+}
+
+export interface AnalyzerSnapshot {
+	analyzerId: string;
+	status: AnalyzerStatus;
+	score?: number;
+	findingCount: number;
+	severityCounts: Record<string, number>;
+	metrics: AnalyzerMetric[];
+	durationMs: number;
+}
+
 export interface VibeReport {
 	version: string;
 	timestamp: string;
@@ -58,7 +80,65 @@ export interface VibeReport {
 		/** Source files the scan walked — lets a reader sanity-check a result
 		 *  against the size of their project instead of taking it on faith. */
 		filesScanned?: number;
+		/** Normalized analyzer summaries emitted by newer scanners. Optional so
+		 *  historical reports and older CLI releases remain valid. */
+		analyzerSnapshots?: AnalyzerSnapshot[];
 	};
+}
+
+export interface RepoMetricHistoryPoint {
+	timestamp: string;
+	value: number;
+	grade?: Grade;
+	reportId?: string;
+	commitSha?: string;
+	branch?: string;
+}
+
+export interface RepoMetricHistorySeriesBase {
+	/** Stable graph id, e.g. "overall.score" or "analyzer.react.jsxFiles". */
+	id: string;
+	label: string;
+	metricId: string;
+	unit?: MetricUnit;
+	trend?: MetricTrend;
+	points: RepoMetricHistoryPoint[];
+}
+
+export interface RepoOverallMetricHistorySeries extends RepoMetricHistorySeriesBase {
+	kind: "overall";
+}
+
+export interface RepoCheckMetricHistorySeries extends RepoMetricHistorySeriesBase {
+	kind: "check";
+	checkName: string;
+}
+
+export interface RepoAnalyzerMetricHistorySeries extends RepoMetricHistorySeriesBase {
+	kind: "analyzer";
+	analyzerId: string;
+}
+
+export type RepoMetricHistorySeries =
+	| RepoOverallMetricHistorySeries
+	| RepoCheckMetricHistorySeries
+	| RepoAnalyzerMetricHistorySeries;
+
+export interface RepoMetricHistoryWindow {
+	from?: string;
+	to?: string;
+	limit?: number;
+}
+
+export interface RepoMetricHistoryResponse {
+	version: string;
+	generatedAt: string;
+	owner: string;
+	repo: string;
+	branch?: string;
+	defaultBranch?: string;
+	window?: RepoMetricHistoryWindow;
+	series: RepoMetricHistorySeries[];
 }
 
 export interface StackInfo {
