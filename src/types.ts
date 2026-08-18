@@ -150,7 +150,7 @@ export interface StackInfo {
 	packageManager: StackPackageManager;
 	/** Detected infrastructure/data components — open vocabulary. Known values:
 	 *  "cloudflare-workers", "cloudflare-pages", "sqlite-d1", "cloudflare-kv",
-	 *  "cloudflare-r2", "durable-objects". Absent = none detected. */
+	 *  "cloudflare-r2", "durable-objects", "mcp-server". Absent = none detected. */
 	components?: string[];
 }
 

@@ -46,10 +46,12 @@ const report = {
 
 /** The canonical roster, spelled out rather than counted.
  *
- *  A bare `toHaveLength(n)` carries no provenance, and that nearly cost us:
- *  two concurrent changes both moved 37 → 38 for different reasons. The
- *  assertions merged cleanly — same file, same line, same text — leaving the
- *  suite asserting a stale count that neither change intended.
+ *  A bare `toHaveLength(n)` carries no provenance, and that cost us: schema#1
+ *  (dead-code) and schema#5 (cloudflare-worker-mcp) were written concurrently
+ *  and *both* changed 37 → 38, for different reasons. The assertions merged
+ *  cleanly — same file, same line, same text — and the suite still claimed 38
+ *  when the true merged value was 39. Two correct changes silently produced a
+ *  wrong test.
  *
  *  Listing the names makes that impossible: a check added on one side and not
  *  the other shows up in the failure diff *by name*, and two independent
@@ -58,6 +60,7 @@ const CANONICAL_CHECKS = [
 	"accessibility",
 	"architecture",
 	"best-practices",
+	"cloudflare-worker-mcp",
 	"cloudflare-workers",
 	"code-coherence",
 	"comment-staleness",
@@ -105,6 +108,16 @@ describe("@vibecodeqa/schema", () => {
 		expect(CHECK_META.testing.weight).toBe(13);
 		expect(CHECK_META["frontend-health"]).toBeDefined();
 		expect(CHECK_META.flutter.appliesTo).toEqual({ framework: ["flutter"] });
+		expect(CHECK_META["cloudflare-worker-mcp"]).toMatchObject({
+			label: "Cloudflare Worker MCP",
+			category: "Security",
+			priority: "critical",
+			weight: 0,
+			appliesTo: { component: ["cloudflare-workers", "mcp-server"] },
+		});
+		expect(CHECK_META["cloudflare-worker-mcp"].description).not.toHaveLength(0);
+		expect(CHECK_META["cloudflare-worker-mcp"].risk).not.toHaveLength(0);
+		expect(CHECK_META["cloudflare-worker-mcp"].recommendation).not.toHaveLength(0);
 	});
 
 	/** Every entry must be complete. A half-added check whose recommendation is
@@ -300,6 +313,26 @@ describe("components (0.3.0)", () => {
 		(r.meta.stack as Record<string, unknown>).components = ["cloudflare-workers", "sqlite-d1"];
 		const parsed = parseReport(r);
 		expect(parsed.meta.stack.components).toEqual(["cloudflare-workers", "sqlite-d1"]);
+	});
+
+	it("accepts Cloudflare Worker MCP reports", () => {
+		const r = structuredClone(report);
+		r.checks = [
+			{
+				name: "cloudflare-worker-mcp",
+				score: 100,
+				grade: "A",
+				details: { tools: 3, authRequired: true },
+				issues: [],
+				duration: 2,
+			},
+		];
+		(r.meta.stack as Record<string, unknown>).components = ["cloudflare-workers", "mcp-server"];
+
+		const parsed = parseReport(r);
+
+		expect(parsed.checks[0]?.name).toBe("cloudflare-worker-mcp");
+		expect(parsed.meta.stack.components).toEqual(["cloudflare-workers", "mcp-server"]);
 	});
 
 	it("stays optional — reports without components still parse", () => {

@@ -506,6 +506,19 @@ export const CHECK_META: Record<string, CheckMeta> = {
 		recommendation:
 			"Keep compatibility_date within a year. Move secrets to `wrangler secret put`. Delete unused bindings; declare every binding the code touches. Add a scheduled() handler for every cron. Add nodejs_compat when importing node: builtins.",
 	},
+	"cloudflare-worker-mcp": {
+		name: "cloudflare-worker-mcp",
+		label: "Cloudflare Worker MCP",
+		category: "Security",
+		priority: "critical",
+		weight: 0,
+		appliesTo: { component: ["cloudflare-workers", "mcp-server"] },
+		description:
+			"Audits Cloudflare Workers that expose MCP servers: manifest/tool metadata, authentication boundaries, capability scoping, request validation, rate-limit posture, and secret or binding access reachable from agent-callable tools.",
+		risk: "Remote MCP servers expose callable capabilities to agents. Weak auth, over-broad tools, unvalidated arguments, or accidental binding access can turn a helpful automation surface into a production data exfiltration or mutation path.",
+		recommendation:
+			"Require explicit authentication for remote MCP traffic, keep tools narrowly scoped, validate every tool argument before touching Worker bindings, rate-limit agent-callable endpoints, and avoid returning secrets or privileged internal data through tool results.",
+	},
 	"sqlite-d1": {
 		name: "sqlite-d1",
 		label: "SQLite / D1",
