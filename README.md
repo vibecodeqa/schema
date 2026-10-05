@@ -52,12 +52,16 @@ producers parse unchanged — and every object stays forward-compatible (`.passt
 | `meta.git.commitDate` | ISO timestamp of the scanned commit. |
 | `meta.git.defaultBranch` | Repository default branch. |
 | `meta.ci` | The CI run that produced the report: `provider` (`"github-actions"`; open vocabulary), `runId`, `runAttempt`, `runUrl`, `event`, `actor`. `null` = known not to be a CI run. |
-| `checks[].status` | `"passed" \| "failed" \| "skipped" \| "unavailable"`. Read this instead of inferring from `score` — skipped and unavailable checks carry a placeholder score. |
+| `checks[].status` | Check outcome. Known values: `passed`, `failed`, `skipped`, `unavailable`. **Open vocabulary** — producers may add others (e.g. `error`, `timeout`); treat an unknown value as "ran". Read this instead of inferring from `score` — skipped and unavailable checks carry a placeholder score. |
 | `checks[].issues[].fingerprint` | Stable identity of a finding across scans (versioned by `meta.fingerprintVersion`). |
 | `checks[].issues[].subject` | Producer-chosen identity anchor (e.g. a function name) that feeds the fingerprint in place of a message embedding a measurement. Opaque. |
 
-Every `meta.git` field is nullable: a scan outside a git checkout, or on a shallow or
-detached clone, may not know it.
+Provenance is advisory and validated leniently: every field inside `meta.git`,
+`meta.ci` and `meta.scan` is optional and nullable (a scan outside a git checkout, or on a
+shallow or detached clone, may not know it). A provenance block — or `source`,
+`fingerprintVersion`, an issue's `fingerprint`/`subject` — that is still malformed
+(wrong types) is **dropped** by `parseReport()`, never fatal: a report is not rejected
+because its provenance is imperfect.
 
 **On a GitHub `pull_request` run, `meta.git.sha` is GitHub's synthetic merge commit
 (head merged into base), not the PR head.** That is the tree that was actually scanned.

@@ -36,8 +36,9 @@ export interface CheckResult {
 	duration: number; // ms
 	/** Outcome of the check, written by CLI >= 0.54. Read this instead of
 	 *  inferring from `score`: a skipped or unavailable check still carries a
-	 *  placeholder score. Absent on older reports. */
-	status?: "passed" | "failed" | "skipped" | "unavailable";
+	 *  placeholder score. Absent on older reports. Open vocabulary — producers
+	 *  may add values (e.g. "error", "timeout"); treat an unknown one as "ran". */
+	status?: "passed" | "failed" | "skipped" | "unavailable" | (string & {});
 }
 
 export interface Issue {
@@ -57,50 +58,53 @@ export interface Issue {
 	subject?: string;
 }
 
-/** Git state of the tree that was scanned. Every field is nullable: a scan
- *  outside a git checkout, or on a detached/shallow clone, may not know it.
+/** Git state of the tree that was scanned. Every field is optional and
+ *  nullable: a scan outside a git checkout, or on a detached/shallow clone,
+ *  may not know it.
  *
  *  On a GitHub `pull_request` run the checked-out commit is GitHub's
  *  synthetic merge of head into base, so `sha` is that merge commit — not
  *  the PR head. Use `headSha` to attribute results or post commit statuses. */
 export interface ReportGitProvenance {
 	/** Commit that was checked out and scanned (the merge sha on a PR run). */
-	sha: string | null;
+	sha?: string | null;
 	/** PR head commit; equal to `sha` when not on a PR. */
-	headSha: string | null;
+	headSha?: string | null;
 	/** PR base commit, when on a PR. */
-	baseSha: string | null;
+	baseSha?: string | null;
 	/** Branch name, e.g. "main" or the PR head branch. */
-	branch: string | null;
+	branch?: string | null;
 	/** Full ref, e.g. "refs/heads/main" or "refs/pull/12/merge". */
-	ref: string | null;
-	prNumber: number | null;
+	ref?: string | null;
+	prNumber?: number | null;
 	/** ISO timestamp of the scanned commit. */
-	commitDate: string | null;
-	defaultBranch: string | null;
+	commitDate?: string | null;
+	defaultBranch?: string | null;
 }
 
 export type CiProvider = "github-actions" | (string & {});
 
-/** The CI run that produced the report. */
+/** The CI run that produced the report. Every field is optional: a producer
+ *  records what its environment exposes. */
 export interface ReportCiProvenance {
-	provider: CiProvider;
-	runId: string;
-	runAttempt: number;
-	runUrl: string;
+	provider?: CiProvider | null;
+	runId?: string | null;
+	runAttempt?: number | null;
+	runUrl?: string | null;
 	/** Triggering event, e.g. "push" or "pull_request". */
-	event: string;
-	actor: string | null;
+	event?: string | null;
+	actor?: string | null;
 }
 
-/** How the scan was run — the options that change what a report covers. */
+/** How the scan was run — the options that change what a report covers.
+ *  Every field is optional. */
 export interface ReportScanInfo {
 	/** Unique id for this scan (a UUID). */
-	id: string;
-	skipTests: boolean;
+	id?: string | null;
+	skipTests?: boolean | null;
 	/** Base ref the report was filtered against (`--diff`); null = full scan.
 	 *  When set, `checks[].issues` is partial. */
-	diffBase: string | null;
+	diffBase?: string | null;
 }
 
 export interface AnalyzerMetric {

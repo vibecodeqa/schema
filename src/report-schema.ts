@@ -2,6 +2,7 @@ import { z } from "zod";
 import type {
 	AnalyzerMetric,
 	AnalyzerSnapshot,
+	CheckResult,
 	ReportCiProvenance,
 	ReportGitProvenance,
 	ReportScanInfo,
@@ -30,8 +31,9 @@ export const IssueSchema = z.object({
 	line: z.number().optional(),
 	rule: z.string().optional(),
 	snippet: z.string().optional(),
-	fingerprint: z.string().optional(),
-	subject: z.string().optional(),
+	// Advisory identity fields: a malformed value is dropped, never fatal.
+	fingerprint: z.string().optional().catch(undefined),
+	subject: z.string().optional().catch(undefined),
 }).passthrough();
 
 export const CheckResultSchema = z.object({
@@ -41,7 +43,7 @@ export const CheckResultSchema = z.object({
 	details: z.record(z.unknown()),
 	issues: z.array(IssueSchema),
 	duration: z.number(),
-	status: z.enum(["passed", "failed", "skipped", "unavailable"]).optional(),
+	status: openString<NonNullable<CheckResult["status"]>>().optional(),
 }).passthrough();
 
 export const AnalyzerMetricSchema: z.ZodType<AnalyzerMetric> = z.object({
@@ -88,32 +90,36 @@ export const WorkspaceInfoSchema = z.object({
 	srcRoots: z.array(z.string()),
 }).passthrough();
 
-const NullableString = z.string().nullable();
+/* Provenance is advisory metadata. It is validated leniently — every inner
+ * field optional and nullable — and a block that is still malformed (wrong
+ * types) is dropped by `.catch(undefined)` in VibeReportSchema rather than
+ * failing the report. A report is never rejected for imperfect provenance. */
+const Str = z.string().nullable().optional();
 
 export const ReportGitProvenanceSchema: z.ZodType<ReportGitProvenance> = z.object({
-	sha: NullableString,
-	headSha: NullableString,
-	baseSha: NullableString,
-	branch: NullableString,
-	ref: NullableString,
-	prNumber: z.number().int().positive().nullable(),
-	commitDate: NullableString,
-	defaultBranch: NullableString,
+	sha: Str,
+	headSha: Str,
+	baseSha: Str,
+	branch: Str,
+	ref: Str,
+	prNumber: z.number().nullable().optional(),
+	commitDate: Str,
+	defaultBranch: Str,
 }).passthrough();
 
 export const ReportCiProvenanceSchema: z.ZodType<ReportCiProvenance> = z.object({
-	provider: openString<ReportCiProvenance["provider"]>(),
-	runId: z.string().min(1),
-	runAttempt: z.number().int().positive(),
-	runUrl: z.string(),
-	event: z.string(),
-	actor: NullableString,
+	provider: openString<NonNullable<ReportCiProvenance["provider"]>>().nullable().optional(),
+	runId: Str,
+	runAttempt: z.number().nullable().optional(),
+	runUrl: Str,
+	event: Str,
+	actor: Str,
 }).passthrough();
 
 export const ReportScanInfoSchema: z.ZodType<ReportScanInfo> = z.object({
-	id: z.string().min(1),
-	skipTests: z.boolean(),
-	diffBase: NullableString,
+	id: Str,
+	skipTests: z.boolean().nullable().optional(),
+	diffBase: Str,
 }).passthrough();
 
 export const VibeReportSchema = z.object({
@@ -132,11 +138,11 @@ export const VibeReportSchema = z.object({
 		branch: z.string(),
 		filesScanned: z.number().optional(),
 		analyzerSnapshots: z.array(AnalyzerSnapshotSchema).optional(),
-		source: z.string().optional(),
-		fingerprintVersion: z.number().int().positive().optional(),
-		scan: ReportScanInfoSchema.optional(),
-		git: ReportGitProvenanceSchema.optional(),
-		ci: ReportCiProvenanceSchema.nullable().optional(),
+		source: z.string().optional().catch(undefined),
+		fingerprintVersion: z.number().int().positive().optional().catch(undefined),
+		scan: ReportScanInfoSchema.optional().catch(undefined),
+		git: ReportGitProvenanceSchema.optional().catch(undefined),
+		ci: ReportCiProvenanceSchema.nullable().optional().catch(undefined),
 	}).passthrough(),
 }).passthrough();
 

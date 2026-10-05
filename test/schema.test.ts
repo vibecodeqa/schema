@@ -510,26 +510,56 @@ describe("scan provenance (0.6.0, schema#6)", () => {
 		expect(VibeReportSchema.safeParse({ ...provenanceReport, meta: { ...provenanceReport.meta, ci } }).success).toBe(true);
 	});
 
-	it("accepts every check status the CLI writes and rejects others", () => {
-		for (const status of ["passed", "failed", "skipped", "unavailable"]) {
+	it("accepts every known check status, and unknown ones without rejecting the report", () => {
+		for (const status of ["passed", "failed", "skipped", "unavailable", "error", "timeout"]) {
 			const r = { ...report, checks: [{ ...report.checks[0], status }] };
-			expect(VibeReportSchema.safeParse(r).success, status).toBe(true);
+			expect(parseReport(r).checks[0].status, status).toBe(status);
 		}
-		const bad = { ...report, checks: [{ ...report.checks[0], status: "green" }] };
-		expect(VibeReportSchema.safeParse(bad).success).toBe(false);
 	});
 
-	it("rejects malformed provenance loudly", () => {
+	it("accepts partial provenance blocks (missing keys, empty strings)", () => {
+		const parsed = parseReport({
+			...report,
+			meta: {
+				...report.meta,
+				git: { sha: "a".repeat(40) },
+				ci: { provider: "github-actions", runId: "" },
+				scan: { skipTests: true },
+			},
+		});
+		expect(parsed.meta.git?.sha).toBe("a".repeat(40));
+		expect(parsed.meta.git?.defaultBranch).toBeUndefined();
+		expect(parsed.meta.ci?.runId).toBe("");
+		expect(parsed.meta.scan?.skipTests).toBe(true);
+	});
+
+	it("drops a malformed provenance block instead of rejecting the report", () => {
 		const meta = provenanceReport.meta;
-		const cases = [
-			{ ...meta, git: { ...meta.git, prNumber: "12" } },
-			{ ...meta, git: { ...meta.git, sha: undefined } },
-			{ ...meta, ci: { ...meta.ci, runAttempt: 0 } },
-			{ ...meta, scan: { ...meta.scan, skipTests: "no" } },
-			{ ...meta, fingerprintVersion: 1.5 },
+		const cases: [string, Record<string, unknown>, (p: ReturnType<typeof parseReport>) => unknown][] = [
+			["git.prNumber string", { ...meta, git: { ...meta.git, prNumber: "12" } }, (p) => p.meta.git],
+			["git not an object", { ...meta, git: "abc123" }, (p) => p.meta.git],
+			["ci.runAttempt string", { ...meta, ci: { ...meta.ci, runAttempt: "1" } }, (p) => p.meta.ci],
+			["scan.skipTests string", { ...meta, scan: { ...meta.scan, skipTests: "no" } }, (p) => p.meta.scan],
+			["fingerprintVersion fractional", { ...meta, fingerprintVersion: 1.5 }, (p) => p.meta.fingerprintVersion],
+			["source number", { ...meta, source: 7 }, (p) => p.meta.source],
 		];
-		for (const m of cases) {
-			expect(VibeReportSchema.safeParse({ ...provenanceReport, meta: m }).success).toBe(false);
+		for (const [label, m, pick] of cases) {
+			const parsed = parseReport({ ...provenanceReport, meta: m });
+			expect(pick(parsed), label).toBeUndefined();
+			expect(parsed.score, label).toBe(provenanceReport.score);
+			expect(parsed.checks, label).toHaveLength(1);
 		}
+		// A bad block costs only itself: the sibling blocks survive.
+		const parsed = parseReport({ ...provenanceReport, meta: { ...meta, git: "abc123" } });
+		expect(parsed.meta.ci?.runId).toBe("123456789");
+		expect(parsed.meta.scan?.diffBase).toBe("origin/main");
+	});
+
+	it("drops a malformed issue fingerprint/subject instead of rejecting the report", () => {
+		const issue = { severity: "info", message: "m", fingerprint: 42, subject: { a: 1 } };
+		const parsed = parseReport({ ...report, checks: [{ ...report.checks[0], issues: [issue] }] });
+		expect(parsed.checks[0].issues[0].fingerprint).toBeUndefined();
+		expect(parsed.checks[0].issues[0].subject).toBeUndefined();
+		expect(parsed.checks[0].issues[0].message).toBe("m");
 	});
 });
