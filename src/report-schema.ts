@@ -2,6 +2,10 @@ import { z } from "zod";
 import type {
 	AnalyzerMetric,
 	AnalyzerSnapshot,
+	CheckResult,
+	ReportCiProvenance,
+	ReportGitProvenance,
+	ReportScanInfo,
 	RepoMetricHistoryResponse,
 	RepoMetricHistorySeries,
 	StackInfo,
@@ -27,6 +31,9 @@ export const IssueSchema = z.object({
 	line: z.number().optional(),
 	rule: z.string().optional(),
 	snippet: z.string().optional(),
+	// Advisory identity fields: a malformed value is dropped, never fatal.
+	fingerprint: z.string().optional().catch(undefined),
+	subject: z.string().optional().catch(undefined),
 }).passthrough();
 
 export const CheckResultSchema = z.object({
@@ -36,6 +43,9 @@ export const CheckResultSchema = z.object({
 	details: z.record(z.unknown()),
 	issues: z.array(IssueSchema),
 	duration: z.number(),
+	// Advisory: a non-string status (e.g. null from a non-TS producer) is
+	// dropped, never fatal — consumers fall back to the details flags.
+	status: openString<NonNullable<CheckResult["status"]>>().optional().catch(undefined),
 }).passthrough();
 
 export const AnalyzerMetricSchema: z.ZodType<AnalyzerMetric> = z.object({
@@ -82,6 +92,42 @@ export const WorkspaceInfoSchema = z.object({
 	srcRoots: z.array(z.string()),
 }).passthrough();
 
+/* Provenance is advisory metadata. It is validated leniently: every inner
+ * field is optional and nullable, and a field with the wrong type is dropped
+ * on its own (`.catch(undefined)`) so its valid siblings survive. A block that
+ * is not an object at all is dropped by the block-level catch in
+ * VibeReportSchema. A report is never rejected for imperfect provenance.
+ * A dropped block degrades to undefined ("unknown"), never null — for `ci`,
+ * null asserts "known not to be a CI run". */
+const lenient = <T extends z.ZodTypeAny>(schema: T) => schema.nullable().optional().catch(undefined);
+const Str = lenient(z.string());
+
+export const ReportGitProvenanceSchema: z.ZodType<ReportGitProvenance, z.ZodTypeDef, unknown> = z.object({
+	sha: Str,
+	headSha: Str,
+	baseSha: Str,
+	branch: Str,
+	ref: Str,
+	prNumber: lenient(z.number()),
+	commitDate: Str,
+	defaultBranch: Str,
+}).passthrough();
+
+export const ReportCiProvenanceSchema: z.ZodType<ReportCiProvenance, z.ZodTypeDef, unknown> = z.object({
+	provider: lenient(openString<NonNullable<ReportCiProvenance["provider"]>>()),
+	runId: Str,
+	runAttempt: lenient(z.number()),
+	runUrl: Str,
+	event: Str,
+	actor: Str,
+}).passthrough();
+
+export const ReportScanInfoSchema: z.ZodType<ReportScanInfo, z.ZodTypeDef, unknown> = z.object({
+	id: Str,
+	skipTests: lenient(z.boolean()),
+	diffBase: Str,
+}).passthrough();
+
 export const VibeReportSchema = z.object({
 	version: z.string(),
 	timestamp: z.string(),
@@ -98,6 +144,11 @@ export const VibeReportSchema = z.object({
 		branch: z.string(),
 		filesScanned: z.number().optional(),
 		analyzerSnapshots: z.array(AnalyzerSnapshotSchema).optional(),
+		source: z.string().optional().catch(undefined),
+		fingerprintVersion: z.number().int().positive().optional().catch(undefined),
+		scan: ReportScanInfoSchema.optional().catch(undefined),
+		git: ReportGitProvenanceSchema.optional().catch(undefined),
+		ci: ReportCiProvenanceSchema.nullable().optional().catch(undefined),
 	}).passthrough(),
 }).passthrough();
 

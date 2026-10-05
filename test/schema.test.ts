@@ -431,3 +431,170 @@ describe("repo metric history contract", () => {
 		})).toThrow();
 	});
 });
+
+describe("scan provenance (0.6.0, schema#6)", () => {
+	const provenanceReport = {
+		...report,
+		checks: [
+			{
+				...report.checks[0],
+				status: "passed",
+				issues: [
+					{
+						severity: "warning",
+						message: "AdminLayout: 65 lines (max 60)",
+						file: "src/AdminLayout.tsx",
+						rule: "long-function",
+						fingerprint: "0123456789abcdef",
+						subject: "AdminLayout",
+					},
+				],
+			},
+		],
+		meta: {
+			...report.meta,
+			source: "cli",
+			fingerprintVersion: 2,
+			scan: { id: "6f1c2b3a-4d5e-4f60-8a7b-9c0d1e2f3a4b", skipTests: false, diffBase: "origin/main" },
+			git: {
+				sha: "a".repeat(40),
+				headSha: "b".repeat(40),
+				baseSha: "c".repeat(40),
+				branch: "feature/x",
+				ref: "refs/pull/12/merge",
+				prNumber: 12,
+				commitDate: "2026-10-05T00:00:00Z",
+				defaultBranch: "main",
+			},
+			ci: {
+				provider: "github-actions",
+				runId: "123456789",
+				runAttempt: 1,
+				runUrl: "https://github.com/o/r/actions/runs/123456789",
+				event: "pull_request",
+				actor: "octocat",
+			},
+		},
+	};
+
+	it("parses a report carrying every provenance field and keeps them", () => {
+		const parsed = parseReport(provenanceReport);
+		expect(parsed.meta.source).toBe("cli");
+		expect(parsed.meta.fingerprintVersion).toBe(2);
+		expect(parsed.meta.scan?.diffBase).toBe("origin/main");
+		expect(parsed.meta.git?.sha).toBe("a".repeat(40));
+		expect(parsed.meta.git?.headSha).toBe("b".repeat(40));
+		expect(parsed.meta.git?.prNumber).toBe(12);
+		expect(parsed.meta.ci?.runAttempt).toBe(1);
+		expect(parsed.checks[0].status).toBe("passed");
+		expect(parsed.checks[0].issues[0].fingerprint).toBe("0123456789abcdef");
+		expect(parsed.checks[0].issues[0].subject).toBe("AdminLayout");
+	});
+
+	it("parses a report carrying none of them (older CLI)", () => {
+		const parsed = parseReport(report);
+		expect(parsed.meta.git).toBeUndefined();
+		expect(parsed.meta.ci).toBeUndefined();
+		expect(parsed.checks[0].status).toBeUndefined();
+	});
+
+	it("accepts an all-null git block and a null ci (local scan outside a checkout)", () => {
+		const git = Object.fromEntries(Object.keys(provenanceReport.meta.git).map((k) => [k, null]));
+		const parsed = parseReport({ ...report, meta: { ...report.meta, git, ci: null } });
+		expect(parsed.meta.git?.sha).toBeNull();
+		expect(parsed.meta.ci).toBeNull();
+	});
+
+	it("keeps CI provider open for future producers", () => {
+		const ci = { ...provenanceReport.meta.ci, provider: "gitlab-ci" };
+		expect(VibeReportSchema.safeParse({ ...provenanceReport, meta: { ...provenanceReport.meta, ci } }).success).toBe(true);
+	});
+
+	it("accepts every known check status, and unknown ones without rejecting the report", () => {
+		for (const status of ["passed", "failed", "skipped", "unavailable", "error", "timeout"]) {
+			const r = { ...report, checks: [{ ...report.checks[0], status }] };
+			expect(parseReport(r).checks[0].status, status).toBe(status);
+		}
+	});
+
+	it("accepts partial provenance blocks (missing keys, empty strings)", () => {
+		const parsed = parseReport({
+			...report,
+			meta: {
+				...report.meta,
+				git: { sha: "a".repeat(40) },
+				ci: { provider: "github-actions", runId: "" },
+				scan: { skipTests: true },
+			},
+		});
+		expect(parsed.meta.git?.sha).toBe("a".repeat(40));
+		expect(parsed.meta.git?.defaultBranch).toBeUndefined();
+		expect(parsed.meta.ci?.runId).toBe("");
+		expect(parsed.meta.scan?.skipTests).toBe(true);
+	});
+
+	it("drops a malformed provenance block instead of rejecting the report", () => {
+		const meta = provenanceReport.meta;
+		const cases: [string, Record<string, unknown>, (p: ReturnType<typeof parseReport>) => unknown][] = [
+			["git not an object", { ...meta, git: "abc123" }, (p) => p.meta.git],
+			["git an array", { ...meta, git: [] }, (p) => p.meta.git],
+			["git null", { ...meta, git: null }, (p) => p.meta.git],
+			["ci not an object", { ...meta, ci: 7 }, (p) => p.meta.ci],
+			["scan not an object", { ...meta, scan: "full" }, (p) => p.meta.scan],
+			["fingerprintVersion fractional", { ...meta, fingerprintVersion: 1.5 }, (p) => p.meta.fingerprintVersion],
+			["source number", { ...meta, source: 7 }, (p) => p.meta.source],
+		];
+		for (const [label, m, pick] of cases) {
+			const parsed = parseReport({ ...provenanceReport, meta: m });
+			expect(pick(parsed), label).toBeUndefined();
+			expect(parsed.score, label).toBe(provenanceReport.score);
+			expect(parsed.checks, label).toHaveLength(1);
+		}
+		// A bad block costs only itself: the sibling blocks survive.
+		const parsed = parseReport({ ...provenanceReport, meta: { ...meta, git: "abc123" } });
+		expect(parsed.meta.ci?.runId).toBe("123456789");
+		expect(parsed.meta.scan?.diffBase).toBe("origin/main");
+	});
+
+	it("drops a non-string check status instead of rejecting the report", () => {
+		for (const status of [null, 1, { s: "passed" }]) {
+			const parsed = parseReport({ ...report, checks: [{ ...report.checks[0], status }] });
+			expect(parsed.checks[0].status, JSON.stringify(status)).toBeUndefined();
+			expect(parsed.checks[0].name).toBe("structure");
+		}
+	});
+
+	it("drops only the bad field inside a provenance block, keeping its siblings", () => {
+		const meta = provenanceReport.meta;
+		const parsed = parseReport({
+			...provenanceReport,
+			meta: {
+				...meta,
+				git: { ...meta.git, sha: 123 },
+				ci: { ...meta.ci, runAttempt: "1" },
+				scan: { ...meta.scan, skipTests: "false" },
+			},
+		});
+		expect(parsed.meta.git?.sha).toBeUndefined();
+		expect(parsed.meta.git?.branch).toBe("feature/x");
+		expect(parsed.meta.git?.headSha).toBe("b".repeat(40));
+		expect(parsed.meta.git?.prNumber).toBe(12);
+		expect(parsed.meta.ci?.runAttempt).toBeUndefined();
+		expect(parsed.meta.ci?.runId).toBe("123456789");
+		expect(parsed.meta.scan?.skipTests).toBeUndefined();
+		expect(parsed.meta.scan?.diffBase).toBe("origin/main");
+	});
+
+	it("degrades a non-object ci block to undefined (unknown), not null (known not CI)", () => {
+		const parsed = parseReport({ ...provenanceReport, meta: { ...provenanceReport.meta, ci: "gha" } });
+		expect(parsed.meta.ci).toBeUndefined();
+	});
+
+	it("drops a malformed issue fingerprint/subject instead of rejecting the report", () => {
+		const issue = { severity: "info", message: "m", fingerprint: 42, subject: { a: 1 } };
+		const parsed = parseReport({ ...report, checks: [{ ...report.checks[0], issues: [issue] }] });
+		expect(parsed.checks[0].issues[0].fingerprint).toBeUndefined();
+		expect(parsed.checks[0].issues[0].subject).toBeUndefined();
+		expect(parsed.checks[0].issues[0].message).toBe("m");
+	});
+});
