@@ -2,6 +2,9 @@ import { z } from "zod";
 import type {
 	AnalyzerMetric,
 	AnalyzerSnapshot,
+	ReportCiProvenance,
+	ReportGitProvenance,
+	ReportScanInfo,
 	RepoMetricHistoryResponse,
 	RepoMetricHistorySeries,
 	StackInfo,
@@ -27,6 +30,8 @@ export const IssueSchema = z.object({
 	line: z.number().optional(),
 	rule: z.string().optional(),
 	snippet: z.string().optional(),
+	fingerprint: z.string().optional(),
+	subject: z.string().optional(),
 }).passthrough();
 
 export const CheckResultSchema = z.object({
@@ -36,6 +41,7 @@ export const CheckResultSchema = z.object({
 	details: z.record(z.unknown()),
 	issues: z.array(IssueSchema),
 	duration: z.number(),
+	status: z.enum(["passed", "failed", "skipped", "unavailable"]).optional(),
 }).passthrough();
 
 export const AnalyzerMetricSchema: z.ZodType<AnalyzerMetric> = z.object({
@@ -82,6 +88,34 @@ export const WorkspaceInfoSchema = z.object({
 	srcRoots: z.array(z.string()),
 }).passthrough();
 
+const NullableString = z.string().nullable();
+
+export const ReportGitProvenanceSchema: z.ZodType<ReportGitProvenance> = z.object({
+	sha: NullableString,
+	headSha: NullableString,
+	baseSha: NullableString,
+	branch: NullableString,
+	ref: NullableString,
+	prNumber: z.number().int().positive().nullable(),
+	commitDate: NullableString,
+	defaultBranch: NullableString,
+}).passthrough();
+
+export const ReportCiProvenanceSchema: z.ZodType<ReportCiProvenance> = z.object({
+	provider: openString<ReportCiProvenance["provider"]>(),
+	runId: z.string().min(1),
+	runAttempt: z.number().int().positive(),
+	runUrl: z.string(),
+	event: z.string(),
+	actor: NullableString,
+}).passthrough();
+
+export const ReportScanInfoSchema: z.ZodType<ReportScanInfo> = z.object({
+	id: z.string().min(1),
+	skipTests: z.boolean(),
+	diffBase: NullableString,
+}).passthrough();
+
 export const VibeReportSchema = z.object({
 	version: z.string(),
 	timestamp: z.string(),
@@ -98,6 +132,11 @@ export const VibeReportSchema = z.object({
 		branch: z.string(),
 		filesScanned: z.number().optional(),
 		analyzerSnapshots: z.array(AnalyzerSnapshotSchema).optional(),
+		source: z.string().optional(),
+		fingerprintVersion: z.number().int().positive().optional(),
+		scan: ReportScanInfoSchema.optional(),
+		git: ReportGitProvenanceSchema.optional(),
+		ci: ReportCiProvenanceSchema.nullable().optional(),
 	}).passthrough(),
 }).passthrough();
 

@@ -431,3 +431,105 @@ describe("repo metric history contract", () => {
 		})).toThrow();
 	});
 });
+
+describe("scan provenance (0.6.0, schema#6)", () => {
+	const provenanceReport = {
+		...report,
+		checks: [
+			{
+				...report.checks[0],
+				status: "passed",
+				issues: [
+					{
+						severity: "warning",
+						message: "AdminLayout: 65 lines (max 60)",
+						file: "src/AdminLayout.tsx",
+						rule: "long-function",
+						fingerprint: "0123456789abcdef",
+						subject: "AdminLayout",
+					},
+				],
+			},
+		],
+		meta: {
+			...report.meta,
+			source: "cli",
+			fingerprintVersion: 2,
+			scan: { id: "6f1c2b3a-4d5e-4f60-8a7b-9c0d1e2f3a4b", skipTests: false, diffBase: "origin/main" },
+			git: {
+				sha: "a".repeat(40),
+				headSha: "b".repeat(40),
+				baseSha: "c".repeat(40),
+				branch: "feature/x",
+				ref: "refs/pull/12/merge",
+				prNumber: 12,
+				commitDate: "2026-10-05T00:00:00Z",
+				defaultBranch: "main",
+			},
+			ci: {
+				provider: "github-actions",
+				runId: "123456789",
+				runAttempt: 1,
+				runUrl: "https://github.com/o/r/actions/runs/123456789",
+				event: "pull_request",
+				actor: "octocat",
+			},
+		},
+	};
+
+	it("parses a report carrying every provenance field and keeps them", () => {
+		const parsed = parseReport(provenanceReport);
+		expect(parsed.meta.source).toBe("cli");
+		expect(parsed.meta.fingerprintVersion).toBe(2);
+		expect(parsed.meta.scan?.diffBase).toBe("origin/main");
+		expect(parsed.meta.git?.sha).toBe("a".repeat(40));
+		expect(parsed.meta.git?.headSha).toBe("b".repeat(40));
+		expect(parsed.meta.git?.prNumber).toBe(12);
+		expect(parsed.meta.ci?.runAttempt).toBe(1);
+		expect(parsed.checks[0].status).toBe("passed");
+		expect(parsed.checks[0].issues[0].fingerprint).toBe("0123456789abcdef");
+		expect(parsed.checks[0].issues[0].subject).toBe("AdminLayout");
+	});
+
+	it("parses a report carrying none of them (older CLI)", () => {
+		const parsed = parseReport(report);
+		expect(parsed.meta.git).toBeUndefined();
+		expect(parsed.meta.ci).toBeUndefined();
+		expect(parsed.checks[0].status).toBeUndefined();
+	});
+
+	it("accepts an all-null git block and a null ci (local scan outside a checkout)", () => {
+		const git = Object.fromEntries(Object.keys(provenanceReport.meta.git).map((k) => [k, null]));
+		const parsed = parseReport({ ...report, meta: { ...report.meta, git, ci: null } });
+		expect(parsed.meta.git?.sha).toBeNull();
+		expect(parsed.meta.ci).toBeNull();
+	});
+
+	it("keeps CI provider open for future producers", () => {
+		const ci = { ...provenanceReport.meta.ci, provider: "gitlab-ci" };
+		expect(VibeReportSchema.safeParse({ ...provenanceReport, meta: { ...provenanceReport.meta, ci } }).success).toBe(true);
+	});
+
+	it("accepts every check status the CLI writes and rejects others", () => {
+		for (const status of ["passed", "failed", "skipped", "unavailable"]) {
+			const r = { ...report, checks: [{ ...report.checks[0], status }] };
+			expect(VibeReportSchema.safeParse(r).success, status).toBe(true);
+		}
+		const bad = { ...report, checks: [{ ...report.checks[0], status: "green" }] };
+		expect(VibeReportSchema.safeParse(bad).success).toBe(false);
+	});
+
+	it("rejects malformed provenance loudly", () => {
+		const meta = provenanceReport.meta;
+		const cases = [
+			{ ...meta, git: { ...meta.git, prNumber: "12" } },
+			{ ...meta, git: { ...meta.git, sha: undefined } },
+			{ ...meta, ci: { ...meta.ci, runAttempt: 0 } },
+			{ ...meta, scan: { ...meta.scan, skipTests: "no" } },
+			{ ...meta, fingerprintVersion: 1.5 },
+		];
+		for (const m of cases) {
+			expect(VibeReportSchema.safeParse({ ...provenanceReport, meta: m }).success).toBe(false);
+		}
+	});
+});
